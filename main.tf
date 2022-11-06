@@ -111,7 +111,7 @@ module "db" {
 
 module "master_secret" {
   source   = "truemark/rds-secret/aws"
-  version  = "1.0.2"
+  version  = "1.0.3"
   create = var.create_db_instance && var.create_secrets
   cluster = false
   identifier = module.db.db_instance_id
@@ -124,7 +124,7 @@ module "master_secret" {
 module "user_secrets" {
   for_each = {for user in var.additional_users: user.username => user}
   source   = "truemark/rds-secret/aws"
-  version  = "1.0.2"
+  version  = "1.0.3"
   create = var.create_db_instance && var.create_secrets
   cluster = false
   identifier = module.db.db_instance_id
