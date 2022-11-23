@@ -41,7 +41,7 @@ variable "random_password_length" {
 }
 
 variable "username" {
-  description = "The master database account to create."
+  description = "The primary database account to create."
   type        = string
   default     = "admin" # This is the default in the AWS console
 }
@@ -144,7 +144,7 @@ variable "engine_version" {
 }
 
 variable "instance_type" {
-  description = "Instance type to use at master instance. If instance_type_replica is not set it will use the same type for replica instances"
+  description = "Instance type to use at primary instance. If instance_type_replica is not set it will use the same type for replica instances"
   type        = string
   default     = "db.t4g.small"
 }
@@ -215,11 +215,38 @@ variable "database_name" {
   default     = null
 }
 
+
+variable "sdm_name" {
+  description = "Name to use on the primary StrongDM resource."
+  type        = string
+  default     = null
+}
+
+variable "sdm_environment" {
+  description = "Set the StrongDM environment. If not set, defaults to title(terraform.workspace)"
+  type        = string
+  default     = null
+}
+
 variable "additional_users" {
   description = "Additional users to generate secrets for"
   type = list(object({
-    username      = string
-    database_name = string
+    username          = string
+    database_name     = string
+    sdm_name          = optional(string)
+    sdm_database_name = optional(string)
   }))
   default = []
+}
+
+variable "create_sdm_resources" {
+  description = "Create StrongDM resources"
+  type        = bool
+  default     = false
+}
+
+variable "sdm_tags" {
+  description = "Tags to apply to the SDM resources"
+  type        = map(string)
+  default     = {}
 }

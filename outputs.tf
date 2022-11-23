@@ -85,7 +85,12 @@ output "db_enhanced_monitoring_iam_role_arn" {
   value       = module.db.enhanced_monitoring_iam_role_arn
 }
 
+output "master_secret" {
+  description = "Master secret"
+  value       = module.master_secret
+}
+
 output "user_secrets" {
-  description = "user secret"
+  description = "User secrets"
   value       = module.user_secrets
 }

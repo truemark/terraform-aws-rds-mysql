@@ -5,5 +5,9 @@ terraform {
       source  = "hashicorp/aws"
       version = ">= 4.36.1"
     }
+    sdm = {
+      source  = "strongdm/sdm"
+      version = ">= 1.0.39"
+    }
   }
 }

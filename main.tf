@@ -2,6 +2,16 @@ locals {
   port = 3306
 }
 
+module "standard_tags" {
+  source  = "truemark/standard-tags/aws"
+  version = "1.0.0"
+  automation_component = {
+    id     = "terraform-aws-rds-mysql"
+    url    = "https://registry.terraform.io/modules/truemark/rds-mysql"
+    vendor = "TrueMark"
+  }
+}
+
 data "aws_kms_alias" "db" {
   count = var.create_db_instance && var.kms_key_arn == null && var.kms_key_id == null && var.kms_key_alias != null ? 1 : 0
   name  = var.kms_key_alias
@@ -22,7 +32,7 @@ resource "aws_security_group" "db" {
   count  = var.create_db_instance ? 1 : 0
   name   = var.instance_name
   vpc_id = var.vpc_id
-  tags   = var.tags
+  tags   = merge(var.tags, var.security_group_tags, module.standard_tags.tags)
 
   ingress {
     from_port   = local.port
@@ -58,6 +68,7 @@ resource "aws_iam_role" "rds_enhanced_monitoring" {
   count              = var.create_db_instance ? 1 : 0
   name               = "rds-enhanced-monitoring-${lower(var.instance_name)}"
   assume_role_policy = data.aws_iam_policy_document.rds_enhanced_monitoring.json
+  tags               = merge(var.tags, module.standard_tags.tags)
 }
 
 resource "aws_iam_role_policy_attachment" "rds_enhanced_monitoring" {
@@ -86,8 +97,8 @@ module "db" {
   copy_tags_to_snapshot                 = var.copy_tags_to_snapshot
   create_db_subnet_group                = true
   create_random_password                = false
-  db_instance_tags                      = var.tags
-  db_subnet_group_tags                  = var.tags
+  db_instance_tags                      = merge(var.tags, module.standard_tags.tags)
+  db_subnet_group_tags                  = merge(var.tags, module.standard_tags.tags)
   deletion_protection                   = var.deletion_protection
   engine                                = "mysql"
   major_engine_version                  = var.major_engine_version
@@ -101,7 +112,7 @@ module "db" {
   skip_final_snapshot                   = var.skip_final_snapshot
   snapshot_identifier                   = var.snapshot_identifier
   subnet_ids                            = var.subnet_ids
-  tags                                  = var.tags
+  tags                                  = merge(var.tags, module.standard_tags.tags)
   username                              = var.username
   vpc_security_group_ids                = [join("", aws_security_group.db.*.id)]
   performance_insights_enabled          = true
@@ -111,7 +122,7 @@ module "db" {
 
 module "master_secret" {
   source        = "truemark/rds-secret/aws"
-  version       = "1.0.3"
+  version       = "1.0.6"
   create        = var.create_db_instance && var.create_secrets
   cluster       = false
   identifier    = module.db.db_instance_id
@@ -119,23 +130,58 @@ module "master_secret" {
   username      = module.db.db_instance_username
   password      = join("", random_password.db.*.result)
   database_name = var.database_name != null ? var.database_name : "mysql"
+  tags          = var.tags
 }
 
 module "user_secrets" {
   for_each      = { for user in var.additional_users : user.username => user }
   source        = "truemark/rds-secret/aws"
-  version       = "1.0.3"
+  version       = "1.0.6"
   create        = var.create_db_instance && var.create_secrets
   cluster       = false
   identifier    = module.db.db_instance_id
   name          = each.value.username
   database_name = each.value.database_name
+  tags          = var.tags
 }
 
-resource "null_resource" "sdm_params" {
-  for_each = { for user in var.additional_users : user.username => user }
-  triggers = {
-    username      = each.value.username
-    database_name = each.value.database_name
+#Common Mysql Admin Prod
+#Common MySQL WordPress Prod
+
+locals {
+  sdm_instance_name = trimspace(title(replace(replace(var.instance_name, "_", " "), "-", " ")))
+  sdm_database_name = trimspace(var.database_name != null ? title(replace(replace(var.database_name, "_", " "), "-", " ")) : local.sdm_instance_name)
+  sdm_designation   = trimspace(var.username == var.database_name ? local.sdm_database_name : "${local.sdm_database_name} ${title(replace(replace(var.username, "_", " "), "-", " "))}")
+  sdm_environment   = var.sdm_environment != null ? var.sdm_environment : terraform.workspace
+  sdm_name          = trimspace("${local.sdm_designation} ${title(local.sdm_environment)}")
+  sdm_tags          = merge(local.sdm_environment != "" ? { environment = var.sdm_environment } : {}, var.sdm_tags)
+}
+
+resource "sdm_resource" "master" {
+  count = var.create_sdm_resources ? 1 : 0
+  mysql {
+    name     = local.sdm_name
+    hostname = module.db.db_instance_address
+    port     = local.port
+    database = var.database_name == null ? "mysql" : var.database_name
+    username = module.db.db_instance_username
+    password = module.db.db_instance_password
+    tags     = local.sdm_tags
+  }
+}
+
+resource "sdm_resource" "additional_users" {
+  for_each = { for u in var.additional_users : u.username => {
+    database_name = u.database_name
+    sdm_name      = trimspace("${title(replace(replace(u.username, "_", " "), "-", " "))} ${title(local.sdm_environment)}")
+  } if var.create_sdm_resources }
+  mysql {
+    name     = each.value.sdm_name
+    hostname = module.db.db_instance_address
+    port     = local.port
+    database = each.value.database_name
+    username = each.key
+    password = module.user_secrets[each.key].password
+    tags     = local.sdm_tags
   }
 }
