@@ -84,3 +84,8 @@ output "db_enhanced_monitoring_iam_role_arn" {
   description = "The Amazon Resource Name (ARN) specifying the monitoring role"
   value       = module.db.enhanced_monitoring_iam_role_arn
 }
+
+output "user_secrets" {
+  description = "user secret"
+  value       = module.user_secrets
+}

@@ -110,24 +110,32 @@ module "db" {
 }
 
 module "master_secret" {
-  source   = "truemark/rds-secret/aws"
-  version  = "1.0.3"
-  create = var.create_db_instance && var.create_secrets
-  cluster = false
-  identifier = module.db.db_instance_id
-  name = "master"
-  username = module.db.db_instance_username
-  password = join("", random_password.db.*.result)
+  source        = "truemark/rds-secret/aws"
+  version       = "1.0.3"
+  create        = var.create_db_instance && var.create_secrets
+  cluster       = false
+  identifier    = module.db.db_instance_id
+  name          = "master"
+  username      = module.db.db_instance_username
+  password      = join("", random_password.db.*.result)
   database_name = var.database_name != null ? var.database_name : "mysql"
 }
 
 module "user_secrets" {
-  for_each = {for user in var.additional_users: user.username => user}
-  source   = "truemark/rds-secret/aws"
-  version  = "1.0.3"
-  create = var.create_db_instance && var.create_secrets
-  cluster = false
-  identifier = module.db.db_instance_id
-  name = each.value.username
+  for_each      = { for user in var.additional_users : user.username => user }
+  source        = "truemark/rds-secret/aws"
+  version       = "1.0.3"
+  create        = var.create_db_instance && var.create_secrets
+  cluster       = false
+  identifier    = module.db.db_instance_id
+  name          = each.value.username
   database_name = each.value.database_name
+}
+
+resource "null_resource" "sdm_params" {
+  for_each = { for user in var.additional_users : user.username => user }
+  triggers = {
+    username      = each.value.username
+    database_name = each.value.database_name
+  }
 }
