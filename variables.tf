@@ -87,7 +87,7 @@ variable "storage_type" {
 variable "iops" {
   description = "The amount of provisioned IOPS. Setting implies a storage_type of io1."
   type        = number
-  default     = 500
+  default     = null
 }
 
 variable "kms_key_arn" {
@@ -165,6 +165,12 @@ variable "backup_retention_period" {
   description = "How long to keep backups for (in days)"
   type        = number
   default     = 7
+}
+
+variable "performance_insights_enabled" {
+  description = "Switch to enable or disable Performance Insights for the DB instance. Not supported for all instance types."
+  type        = bool
+  default     = true
 }
 
 variable "preferred_backup_window" {
