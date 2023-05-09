@@ -115,7 +115,7 @@ module "db" {
   tags                                  = merge(var.tags, module.standard_tags.tags)
   username                              = var.username
   vpc_security_group_ids                = [join("", aws_security_group.db.*.id)]
-  performance_insights_enabled          = true
+  performance_insights_enabled          = var.performance_insights_enabled
   performance_insights_retention_period = 7
   monitoring_role_arn                   = join("", aws_iam_role.rds_enhanced_monitoring.*.arn)
 }
