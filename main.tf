@@ -80,7 +80,7 @@ resource "aws_iam_role_policy_attachment" "rds_enhanced_monitoring" {
 module "db" {
   # https://registry.terraform.io/modules/terraform-aws-modules/rds/aws/latest
   source                                = "terraform-aws-modules/rds/aws"
-  version                               = "5.1.0"
+  version                               = "6.5.5" #"5.1.0"
   create_db_instance                    = var.create_db_instance
   create_db_parameter_group             = true
   parameters                            = var.db_parameters
@@ -96,7 +96,7 @@ module "db" {
   backup_retention_period               = var.backup_retention_period
   copy_tags_to_snapshot                 = var.copy_tags_to_snapshot
   create_db_subnet_group                = true
-  create_random_password                = false
+  #create_random_password                = false
   db_instance_tags                      = merge(var.tags, module.standard_tags.tags)
   db_subnet_group_tags                  = merge(var.tags, module.standard_tags.tags)
   deletion_protection                   = var.deletion_protection
@@ -125,12 +125,13 @@ module "master_secret" {
   version       = "1.0.6"
   create        = var.create_db_instance && var.create_secrets
   cluster       = false
-  identifier    = module.db.db_instance_id
+  identifier    = module.db.db_instance_identifier
   name          = "master"
   username      = module.db.db_instance_username
   password      = join("", random_password.db.*.result)
   database_name = var.database_name != null ? var.database_name : "mysql"
   tags          = var.tags
+  depends_on    = [module.db] #Do something???
 }
 
 module "user_secrets" {
@@ -139,49 +140,50 @@ module "user_secrets" {
   version       = "1.0.6"
   create        = var.create_db_instance && var.create_secrets
   cluster       = false
-  identifier    = module.db.db_instance_id
+  identifier    = module.db.db_instance_identifier
   name          = each.value.username
   database_name = each.value.database_name
   tags          = var.tags
+  depends_on    = [module.db] #Do something???
 }
 
 #Common Mysql Admin Prod
 #Common MySQL WordPress Prod
 
-locals {
-  sdm_instance_name = trimspace(title(replace(replace(var.instance_name, "_", " "), "-", " ")))
-  sdm_database_name = trimspace(var.database_name != null ? title(replace(replace(var.database_name, "_", " "), "-", " ")) : local.sdm_instance_name)
-  sdm_designation   = trimspace(var.username == var.database_name ? local.sdm_database_name : "${local.sdm_database_name} ${title(replace(replace(var.username, "_", " "), "-", " "))}")
-  sdm_environment   = var.sdm_environment != null ? var.sdm_environment : terraform.workspace
-  sdm_name          = trimspace("${local.sdm_designation} ${title(local.sdm_environment)}")
-  sdm_tags          = merge(local.sdm_environment != "" ? { environment = var.sdm_environment } : {}, var.sdm_tags)
-}
+# locals {
+#   sdm_instance_name = trimspace(title(replace(replace(var.instance_name, "_", " "), "-", " ")))
+#   sdm_database_name = trimspace(var.database_name != null ? title(replace(replace(var.database_name, "_", " "), "-", " ")) : local.sdm_instance_name)
+#   sdm_designation   = trimspace(var.username == var.database_name ? local.sdm_database_name : "${local.sdm_database_name} ${title(replace(replace(var.username, "_", " "), "-", " "))}")
+#   sdm_environment   = var.sdm_environment != null ? var.sdm_environment : terraform.workspace
+#   sdm_name          = trimspace("${local.sdm_designation} ${title(local.sdm_environment)}")
+#   sdm_tags          = merge(local.sdm_environment != "" ? { environment = var.sdm_environment } : {}, var.sdm_tags)
+# }
 
-resource "sdm_resource" "master" {
-  count = var.create_sdm_resources ? 1 : 0
-  mysql {
-    name     = local.sdm_name
-    hostname = module.db.db_instance_address
-    port     = local.port
-    database = var.database_name == null ? "mysql" : var.database_name
-    username = module.db.db_instance_username
-    password = module.db.db_instance_password
-    tags     = local.sdm_tags
-  }
-}
+# resource "sdm_resource" "master" {
+#   count = var.create_sdm_resources ? 1 : 0
+#   mysql {
+#     name     = local.sdm_name
+#     hostname = module.db.db_instance_address
+#     port     = local.port
+#     database = var.database_name == null ? "mysql" : var.database_name
+#     username = module.db.db_instance_username
+#     password = module.db.db_instance_password
+#     tags     = local.sdm_tags
+#   }
+# }
 
-resource "sdm_resource" "additional_users" {
-  for_each = { for u in var.additional_users : u.username => {
-    database_name = u.database_name
-    sdm_name      = trimspace("${title(replace(replace(u.username, "_", " "), "-", " "))} ${title(local.sdm_environment)}")
-  } if var.create_sdm_resources }
-  mysql {
-    name     = each.value.sdm_name
-    hostname = module.db.db_instance_address
-    port     = local.port
-    database = each.value.database_name
-    username = each.key
-    password = module.user_secrets[each.key].password
-    tags     = local.sdm_tags
-  }
-}
+# resource "sdm_resource" "additional_users" {
+#   for_each = { for u in var.additional_users : u.username => {
+#     database_name = u.database_name
+#     sdm_name      = trimspace("${title(replace(replace(u.username, "_", " "), "-", " "))} ${title(local.sdm_environment)}")
+#   } if var.create_sdm_resources }
+#   mysql {
+#     name     = each.value.sdm_name
+#     hostname = module.db.db_instance_address
+#     port     = local.port
+#     database = each.value.database_name
+#     username = each.key
+#     password = module.user_secrets[each.key].password
+#     tags     = local.sdm_tags
+#   }
+# }
