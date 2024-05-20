@@ -273,14 +273,14 @@ variable "option_group_use_name_prefix" {
   default     = true
 }
 
-variable "parameter_group_name" {
-  description = "Name of the DB parameter group to associate or create"
+variable "parameter_group_description" {
+  description = "Description of the DB parameter group to create"
   type        = string
   default     = null
 }
 
-variable "parameter_group_description" {
-  description = "Description of the DB parameter group to create"
+variable "parameter_group_name" {
+  description = "Name of the DB parameter group to associate or create"
   type        = string
   default     = null
 }
@@ -308,9 +308,9 @@ variable "password" {
 }
 
 variable "performance_insights_enabled" {
-  description = "Switch to enable or disable Performance Insights for the DB instance. Not supported for all instance types."
+  description = "Switch to enable or disable Performance Insights for the DB instance. Not supported for all instance types. Set to false for MySQL"
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "performance_insights_kms_key_id" {
@@ -417,28 +417,4 @@ variable "additional_users" {
     sdm_database_name = optional(string)
   }))
   default = []
-}
-
-variable "sdm_name" {
-  description = "Name to use on the primary StrongDM resource."
-  type        = string
-  default     = null
-}
-
-variable "sdm_environment" {
-  description = "Set the StrongDM environment. If not set, defaults to title(terraform.workspace)"
-  type        = string
-  default     = null
-}
-
-variable "create_sdm_resources" {
-  description = "Create StrongDM resources"
-  type        = bool
-  default     = false
-}
-
-variable "sdm_tags" {
-  description = "Tags to apply to the SDM resources"
-  type        = map(string)
-  default     = {}
 }

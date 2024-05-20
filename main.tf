@@ -1,16 +1,13 @@
 locals {
   port = 3306
-}
-
-module "standard_tags" {
-  source  = "truemark/standard-tags/aws"
-  version = "1.0.0"
-  automation_component = {
-    id     = "terraform-aws-rds-mysql"
-    url    = "https://registry.terraform.io/modules/truemark/rds-mysql"
-    vendor = "TrueMark"
+  tags = merge(var.tags,
+    {
+      "automation:component-id"     = "rds-aurora-mysql",
+      "automation:component-url"    = "https://registry.terraform.io/modules/truemark/rds-aurora-mysql/aws/latest",
+      "automation:component-vendor" = "TrueMark",
+      "backup:policy"               = "default-week",
+  })
   }
-}
 
 data "aws_kms_alias" "db" {
   count = var.create_db_instance && var.kms_key_arn == null && var.kms_key_id == null && var.kms_key_alias != null ? 1 : 0
@@ -32,7 +29,7 @@ resource "aws_security_group" "db" {
   count  = var.create_db_instance ? 1 : 0
   name   = var.instance_name
   vpc_id = var.vpc_id
-  tags   = merge(var.tags, var.security_group_tags, module.standard_tags.tags)
+  tags   = local.tags
 
   ingress {
     from_port   = local.port
@@ -68,7 +65,7 @@ resource "aws_iam_role" "rds_enhanced_monitoring" {
   count              = var.create_db_instance ? 1 : 0
   name               = "rds-enhanced-monitoring-${lower(var.instance_name)}"
   assume_role_policy = data.aws_iam_policy_document.rds_enhanced_monitoring.json
-  tags               = merge(var.tags, module.standard_tags.tags)
+  tags               = local.tags
 }
 
 resource "aws_iam_role_policy_attachment" "rds_enhanced_monitoring" {
@@ -80,57 +77,59 @@ resource "aws_iam_role_policy_attachment" "rds_enhanced_monitoring" {
 module "db" {
   # https://registry.terraform.io/modules/terraform-aws-modules/rds/aws/latest
   source                                = "terraform-aws-modules/rds/aws"
-  version                               = "6.5.5" #"5.1.0"
-  create_db_instance                    = var.create_db_instance
-  create_db_parameter_group             = true
-  parameters                            = var.db_parameters
-  db_name                               = var.database_name
+  version                               = "6.5.5" 
+  
   allocated_storage                     = var.allocated_storage
-  max_allocated_storage                 = var.max_allocated_storage
-  storage_type                          = var.storage_type
-  iops                                  = var.iops
-  storage_encrypted                     = true
-  kms_key_id                            = var.kms_key_arn != null ? var.kms_key_arn : (var.kms_key_id != null) ? join("", data.aws_kms_key.db.*.arn) : (var.kms_key_alias != null) ? join("", data.aws_kms_alias.db.*.target_key_arn) : null
-  auto_minor_version_upgrade            = var.auto_minor_version_upgrade
   apply_immediately                     = var.apply_immediately
+  auto_minor_version_upgrade            = var.auto_minor_version_upgrade
   backup_retention_period               = var.backup_retention_period
   copy_tags_to_snapshot                 = var.copy_tags_to_snapshot
+  create_db_instance                    = var.create_db_instance
+  create_db_parameter_group             = true
   create_db_subnet_group                = true
-  #create_random_password                = false
-  db_instance_tags                      = merge(var.tags, module.standard_tags.tags)
-  db_subnet_group_tags                  = merge(var.tags, module.standard_tags.tags)
+  db_instance_tags                      = local.tags
+  db_name                               = var.database_name
+  db_subnet_group_tags                  = local.tags
   deletion_protection                   = var.deletion_protection
   engine                                = "mysql"
-  major_engine_version                  = var.major_engine_version
   engine_version                        = var.engine_version
   family                                = var.family
   identifier                            = var.instance_name
   instance_class                        = var.instance_type
+  iops                                  = var.iops
+  kms_key_id                            = var.kms_key_arn
+  major_engine_version                  = var.major_engine_version
+  manage_master_user_password           = var.manage_master_user_password
+  max_allocated_storage                 = var.max_allocated_storage
   monitoring_interval                   = var.monitoring_interval
+  monitoring_role_arn                   = join("", aws_iam_role.rds_enhanced_monitoring.*.arn)
   multi_az                              = var.multi_az
+  parameters                            = var.db_parameters
   password                              = join("", random_password.db.*.result)
-  skip_final_snapshot                   = var.skip_final_snapshot
-  snapshot_identifier                   = var.snapshot_identifier
-  subnet_ids                            = var.subnet_ids
-  tags                                  = merge(var.tags, module.standard_tags.tags)
-  username                              = var.username
-  vpc_security_group_ids                = [join("", aws_security_group.db.*.id)]
   performance_insights_enabled          = var.performance_insights_enabled
   performance_insights_retention_period = 7
-  monitoring_role_arn                   = join("", aws_iam_role.rds_enhanced_monitoring.*.arn)
+  skip_final_snapshot                   = var.skip_final_snapshot
+  snapshot_identifier                   = var.snapshot_identifier
+  storage_type                          = var.storage_type
+  storage_encrypted                     = true
+  subnet_ids                            = var.subnet_ids
+  tags                                  = local.tags
+  username                              = var.username
+  vpc_security_group_ids                = [join("", aws_security_group.db.*.id)]
 }
 
 module "master_secret" {
+  count = var.create_db_instance && var.manage_master_user_password ? 0 : 1
   source        = "truemark/rds-secret/aws"
   version       = "1.0.6"
   create        = var.create_db_instance && var.create_secrets
   cluster       = false
+  database_name = var.database_name != null ? var.database_name : "mysql"
   identifier    = module.db.db_instance_identifier
   name          = "master"
-  username      = module.db.db_instance_username
   password      = join("", random_password.db.*.result)
-  database_name = var.database_name != null ? var.database_name : "mysql"
   tags          = var.tags
+  username      = module.db.db_instance_username
   depends_on    = [module.db] #Do something???
 }
 
@@ -140,50 +139,9 @@ module "user_secrets" {
   version       = "1.0.6"
   create        = var.create_db_instance && var.create_secrets
   cluster       = false
+  database_name = each.value.database_name
   identifier    = module.db.db_instance_identifier
   name          = each.value.username
-  database_name = each.value.database_name
   tags          = var.tags
   depends_on    = [module.db] #Do something???
 }
-
-#Common Mysql Admin Prod
-#Common MySQL WordPress Prod
-
-# locals {
-#   sdm_instance_name = trimspace(title(replace(replace(var.instance_name, "_", " "), "-", " ")))
-#   sdm_database_name = trimspace(var.database_name != null ? title(replace(replace(var.database_name, "_", " "), "-", " ")) : local.sdm_instance_name)
-#   sdm_designation   = trimspace(var.username == var.database_name ? local.sdm_database_name : "${local.sdm_database_name} ${title(replace(replace(var.username, "_", " "), "-", " "))}")
-#   sdm_environment   = var.sdm_environment != null ? var.sdm_environment : terraform.workspace
-#   sdm_name          = trimspace("${local.sdm_designation} ${title(local.sdm_environment)}")
-#   sdm_tags          = merge(local.sdm_environment != "" ? { environment = var.sdm_environment } : {}, var.sdm_tags)
-# }
-
-# resource "sdm_resource" "master" {
-#   count = var.create_sdm_resources ? 1 : 0
-#   mysql {
-#     name     = local.sdm_name
-#     hostname = module.db.db_instance_address
-#     port     = local.port
-#     database = var.database_name == null ? "mysql" : var.database_name
-#     username = module.db.db_instance_username
-#     password = module.db.db_instance_password
-#     tags     = local.sdm_tags
-#   }
-# }
-
-# resource "sdm_resource" "additional_users" {
-#   for_each = { for u in var.additional_users : u.username => {
-#     database_name = u.database_name
-#     sdm_name      = trimspace("${title(replace(replace(u.username, "_", " "), "-", " "))} ${title(local.sdm_environment)}")
-#   } if var.create_sdm_resources }
-#   mysql {
-#     name     = each.value.sdm_name
-#     hostname = module.db.db_instance_address
-#     port     = local.port
-#     database = each.value.database_name
-#     username = each.key
-#     password = module.user_secrets[each.key].password
-#     tags     = local.sdm_tags
-#   }
-# }
