@@ -173,7 +173,7 @@ variable "family" {
 variable "ingress_cidrs" {
   description = "List of allowed CIDRs that can access this RDS instance."
   type        = list(string)
-  default     = ["0.0.0.0/0"]
+  default     = ["10.0.0.0/0"]
 }
 
 variable "instance_name" {
