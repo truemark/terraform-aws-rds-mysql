@@ -105,7 +105,8 @@ module "db" {
   monitoring_role_arn                   = join("", aws_iam_role.rds_enhanced_monitoring.*.arn)
   multi_az                              = var.multi_az
   parameters                            = var.db_parameters
-  password                              = join("", random_password.db.*.result)
+  #password                              = join("", random_password.db.*.result)
+  password                              = var.manage_master_user_password ? null : (var.password != null ? var.password : join("", random_password.db.*.result)) 
   performance_insights_enabled          = var.performance_insights_enabled
   performance_insights_retention_period = 7
   skip_final_snapshot                   = var.skip_final_snapshot
@@ -127,7 +128,7 @@ module "master_secret" {
   database_name = var.database_name != null ? var.database_name : "mysql"
   identifier    = module.db.db_instance_identifier
   name          = "master"
-  password      = join("", random_password.db.*.result)
+  password      = var.password != null ? var.password : join("", random_password.db.*.result)
   tags          = var.tags
   username      = module.db.db_instance_username
   depends_on    = [module.db] #Do something???
