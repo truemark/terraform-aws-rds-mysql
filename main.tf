@@ -2,8 +2,8 @@ locals {
   port = 3306
   tags = merge(var.tags,
     {
-      "automation:component-id"     = "rds-aurora-mysql",
-      "automation:component-url"    = "https://registry.terraform.io/modules/truemark/rds-aurora-mysql/aws/latest",
+      "automation:component-id"     = "rds-mysql",
+      "automation:component-url"    = "https://registry.terraform.io/modules/truemark/rds-mysql/aws/latest",
       "automation:component-vendor" = "TrueMark",
       "backup:policy"               = "default-week",
   })
@@ -83,6 +83,7 @@ module "db" {
   apply_immediately                     = var.apply_immediately
   auto_minor_version_upgrade            = var.auto_minor_version_upgrade
   backup_retention_period               = var.backup_retention_period
+  ca_cert_identifier                    = var.ca_cert_identifier
   copy_tags_to_snapshot                 = var.copy_tags_to_snapshot
   create_db_instance                    = var.create_db_instance
   create_db_parameter_group             = true
