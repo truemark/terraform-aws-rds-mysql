@@ -123,7 +123,7 @@ module "db" {
 module "master_secret" {
   count         = var.create_db_instance && var.manage_master_user_password ? 0 : 1
   source        = "truemark/rds-secret/aws"
-  version       = "1.0.6"
+  version       = "1.2.3"
   create        = var.create_db_instance && var.create_secrets
   cluster       = false
   database_name = var.database_name != null ? var.database_name : "mysql"
@@ -138,7 +138,7 @@ module "master_secret" {
 module "user_secrets" {
   for_each      = { for user in var.additional_users : user.username => user }
   source        = "truemark/rds-secret/aws"
-  version       = "1.0.6"
+  version       = "1.2.3"
   create        = var.create_db_instance && var.create_secrets
   cluster       = false
   database_name = each.value.database_name
