@@ -1,3 +1,5 @@
+## **⚠ NOTICE**: This project is deprecated has been replaced by [terraform-aws-database](https://github.com/truemark/terraform-aws-database). Please discontinue use of this module.
+
 # AWS RDS Aurora MySQL
 
 This terraform module creates a provisioned RDS instance with MySQL
